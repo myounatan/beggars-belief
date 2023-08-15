@@ -7,9 +7,10 @@ import { ContractFactory } from 'ethers';
 
 describe('Beggars Belief upgradability test', function () {
   it('creates a proxy and implementation V1', async () => {
-    const [owner, admin] = await ethers.getSigners();
+    const [owner, admin, account3] = await ethers.getSigners();
     const ownerAddress = await owner.getAddress();
     const adminAddress = await admin.getAddress();
+    const account3Address = await account3.getAddress();
 
     const BeggarsBeliefV1: any = await hre.ethers.getContractFactory('BeggarsBeliefV1');
 
@@ -26,6 +27,19 @@ describe('Beggars Belief upgradability test', function () {
     console.log('Proxy address: ', proxyAddress);
     console.log('Implementation address: ', await upgrades.erc1967.getImplementationAddress(proxyAddress));
 
+    // mint token id 0 and check data
+
+    await contract.mint(adminAddress, 0, 'https://token_1_uri');
+
+    expect(await contract.ownerOf(0)).to.equal(adminAddress);
+    expect(await contract.tokenURI(0)).to.equal('https://token_1_uri');
+
+    // mint out of order token id 69
+
+    await contract.mint(account3Address, 69, 'https://token_69_uri');
+
+    expect(await contract.ownerOf(69)).to.equal(account3Address);
+    expect(await contract.tokenURI(69)).to.equal('https://token_69_uri');
   });
 
   it('creates and upgrades to V2', async () => {
@@ -60,5 +74,18 @@ describe('Beggars Belief upgradability test', function () {
     expect(await upgradedContract.getSomeMapping(0)).to.equal('hello');
 
     console.log('Upgraded implementation address: ', await upgrades.erc1967.getImplementationAddress(proxyAddress));
+
+    // mint token id 0
+
+    await upgradedContract.mint(adminAddress, 0, 'https://token_1_uri');
+
+    expect(await upgradedContract.ownerOf(0)).to.equal(adminAddress);
+    expect(await upgradedContract.tokenURI(0)).to.equal('https://token_1_uri');
+
+    // burn token id 0
+
+    await upgradedContract.burn(0);
+
+    expect(await upgradedContract.balanceOf(adminAddress)).to.equal(0);
   });
 });
