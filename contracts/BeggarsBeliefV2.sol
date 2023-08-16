@@ -9,7 +9,7 @@ import "@openzeppelin/contracts-upgradeable/token/common/ERC2981Upgradeable.sol"
 import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 
 /**
- * @title BeggarsBelief
+ * @title BeggarsBeliefV2
  * @author Created by Mitchell F Chan @mitchellfchan
  * @author Written by Matthew Younatan @matyounatan
  * @notice Allows for out-of-order token minting and collector acknlowdgement. No upper limit.
@@ -22,7 +22,8 @@ contract BeggarsBeliefV2 is
     // variables
 
     struct State {
-        address admin; // developer address, or address(0) for onlyOwner access
+        /// @notice The admin address. Can be set to 0 address for onlyOwner access.
+        address admin;
         /// @notice The URI of the token.
         mapping(uint256 => string) tokenURIs;
         /// @notice The collector's acknowledgement of the token.
@@ -54,6 +55,9 @@ contract BeggarsBeliefV2 is
 
     /// @notice Emitted when calling a function the requires the caller to be the owner or admin.
     error OnlyOwnerOrAdmin();
+
+    /// @notice Emitted when calling a function the requires the caller to be the owner or the token owner.
+    error OnlyOwnerOrTokenOwner();
 
     /// @notice Emitted when calling a function the requires the caller to be the owner.
     error OnlyOwner();
@@ -89,28 +93,30 @@ contract BeggarsBeliefV2 is
         _;
     }
 
-    // TODO: maybe we should have delegate.cash here? most high-profile tokens are held in vaults right?
     modifier onlyTokenOwner(uint256 _tokenId) {
-        if (ownerOf(_tokenId) != msg.sender) revert OnlyTokenOwner();
+        if (ownerOf(_tokenId) != _msgSender()) revert OnlyTokenOwner();
+        _;
+    }
+
+    modifier onlyOwnerOrTokenOwner(uint256 _tokenId) {
+        if (owner() != _msgSender() && ownerOf(_tokenId) != _msgSender())
+            revert OnlyOwnerOrTokenOwner();
         _;
     }
 
     // initializer
 
-    function initialize(
-        address _royaltyCollector,
-        address _admin
-    ) public onlyOwnerOrAdmin initializer {
+    function initialize() public initializer {
         __Ownable_init_unchained();
         __ERC2981_init_unchained();
         __ERC721_init_unchained("Mitchell F. Chan, Beggars Belief", "BB");
-
-        _setDefaultRoyalty(_royaltyCollector, 750); // 750 (out of 10,000) = 7.5%
-
-        state.admin = _admin;
     }
 
     // onlyOwner functions
+
+    function disableInitializers() external onlyOwner {
+        _disableInitializers();
+    }
 
     function setAdmin(address _admin) external onlyOwner {
         state.admin = _admin;
@@ -130,9 +136,9 @@ contract BeggarsBeliefV2 is
         state.tokenURIs[_tokenId] = _tokenURI;
     }
 
-    // function burn(uint256 _tokenId) external onlyOwner tokenExists(_tokenId) {
-    //   _burn(_tokenId);
-    // }
+    function burn(uint256 _tokenId) external onlyOwner tokenExists(_tokenId) {
+        _burn(_tokenId);
+    }
 
     function setTokenURI(
         uint256 _tokenId,
@@ -161,7 +167,7 @@ contract BeggarsBeliefV2 is
     function setCollectorAcknowledgement(
         uint256 _tokenId,
         string memory _collectorAcknowledgement
-    ) external onlyTokenOwner(_tokenId) {
+    ) external onlyOwnerOrTokenOwner(_tokenId) {
         state.collectorAcknowledgement[_tokenId] = _collectorAcknowledgement;
 
         emit SetCollectorAcknowledgement(
@@ -174,7 +180,7 @@ contract BeggarsBeliefV2 is
     function setAdditionalInformation(
         uint256 _tokenId,
         string memory _additionalInformation
-    ) external onlyTokenOwner(_tokenId) {
+    ) external onlyOwnerOrTokenOwner(_tokenId) {
         state.additionalInformation[_tokenId] = _additionalInformation;
 
         emit SetAdditionalInformation(
@@ -236,12 +242,8 @@ contract BeggarsBeliefV2 is
     }
 
     function getSomeMapping(
-        uint256 _tokenId
+        uint256 _index
     ) public view returns (string memory) {
-        return newState.someMapping[_tokenId];
-    }
-
-    function burn(uint256 _tokenId) external onlyOwner tokenExists(_tokenId) {
-        _burn(_tokenId);
+        return newState.someMapping[_index];
     }
 }

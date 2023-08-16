@@ -12,12 +12,14 @@ describe('Beggars Belief upgradability test', function () {
     const adminAddress = await admin.getAddress();
     const account3Address = await account3.getAddress();
 
-    const BeggarsBeliefV1: any = await hre.ethers.getContractFactory('BeggarsBeliefV1');
+    const BeggarsBeliefV1: any = await hre.ethers.getContractFactory('BeggarsBelief');
 
-    const instance = await upgrades.deployProxy(BeggarsBeliefV1, [ownerAddress, adminAddress]);
+    const instance = await upgrades.deployProxy(BeggarsBeliefV1, { initializer: 'initialize', kind: 'transparent' });
     const contract = await instance.waitForDeployment();
 
-    // instance.initialize();
+    await contract.setDefaultRoyalty(owner, 750);
+
+    await contract.setAdmin(adminAddress);
 
     expect(await contract.owner()).to.equal(ownerAddress);
     expect(await contract.getAdmin()).to.equal(adminAddress);
@@ -47,12 +49,14 @@ describe('Beggars Belief upgradability test', function () {
     const ownerAddress = await owner.getAddress();
     const adminAddress = await admin.getAddress();
 
-    const BeggarsBeliefV1: any = await hre.ethers.getContractFactory('BeggarsBeliefV1');
+    const BeggarsBeliefV1: any = await hre.ethers.getContractFactory('BeggarsBelief');
 
-    const instance = await upgrades.deployProxy(BeggarsBeliefV1, [ownerAddress, adminAddress]);
+    const instance = await upgrades.deployProxy(BeggarsBeliefV1, { initializer: 'initialize', kind: 'transparent' });
     const contract = await instance.waitForDeployment();
 
-    // await contract.initialize(ownerAddress, adminAddress);
+    await contract.setDefaultRoyalty(owner, 750);
+
+    await contract.setAdmin(adminAddress);
 
     expect(await contract.owner()).to.equal(ownerAddress);
     expect(await contract.getAdmin()).to.equal(adminAddress);

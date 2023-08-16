@@ -2,11 +2,9 @@
 
 pragma solidity ^0.8.17;
 
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/common/ERC2981Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/common/ERC2981.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 /**
  * @title BeggarsBelief
@@ -14,25 +12,17 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
  * @author Written by Matthew Younatan @matyounatan
  * @notice Allows for out-of-order token minting and collector acknlowdgement. No upper limit.
  */
-contract BeggarsBeliefV1 is
-    OwnableUpgradeable,
-    ERC2981Upgradeable,
-    ERC721Upgradeable
-{
+contract BeggarsBeliefStandalone is Ownable, ERC2981, ERC721 {
     // variables
 
-    struct State {
-        address admin; // developer address, or address(0) for onlyOwner access
-        /// @notice The URI of the token.
-        mapping(uint256 => string) tokenURIs;
-        /// @notice The collector's acknowledgement of the token.
-        mapping(uint256 => string) collectorAcknowledgement;
-        /// @notice Additional information about the token.
-        mapping(uint256 => string) additionalInformation;
-    }
+    /// @notice The base URI of the token.
+    mapping(uint256 => string) public baseURIs;
 
-    /// @notice The state of the contract.
-    State private state;
+    /// @notice The collector's acknowledgement of the token.
+    mapping(uint256 => string) public collectorAcknowledgement;
+
+    /// @notice Additional information about the token.
+    mapping(uint256 => string) public additionalInformation;
 
     // events
 
@@ -52,11 +42,8 @@ contract BeggarsBeliefV1 is
 
     // errors
 
-    /// @notice Emitted when calling a function the requires the caller to be the owner or admin.
-    error OnlyOwnerOrAdmin();
-
-    /// @notice Emitted when calling a function the requires the caller to be the owner.
-    error OnlyOwner();
+    /// @notice Emitted when calling a function the requires the caller to be the owner or the token owner.
+    error OnlyOwnerOrTokenOwner();
 
     /// @notice Emitted when calling a function the requires the token to exist.
     error TokenDoesNotExist();
@@ -65,19 +52,9 @@ contract BeggarsBeliefV1 is
     error TokenAlreadyExists();
 
     /// @notice Emitted when calling a function the requires the caller to be the token owner.
-    error OnlyTokenOwner();
+    error OnlyCallableByTokenOwner();
 
     // modifiers
-
-    modifier onlyOwnerOrAdmin() {
-        if (state.admin != address(0)) {
-            if (_msgSender() != owner() && _msgSender() != state.admin)
-                revert OnlyOwnerOrAdmin();
-        } else {
-            if (_msgSender() != owner()) revert OnlyOwner();
-        }
-        _;
-    }
 
     modifier tokenExists(uint256 _tokenId) {
         if (!_exists(_tokenId)) revert TokenDoesNotExist();
@@ -91,54 +68,46 @@ contract BeggarsBeliefV1 is
 
     // TODO: maybe we should have delegate.cash here? most high-profile tokens are held in vaults right?
     modifier onlyTokenOwner(uint256 _tokenId) {
-        if (ownerOf(_tokenId) != msg.sender) revert OnlyTokenOwner();
+        if (ownerOf(_tokenId) != msg.sender) revert OnlyCallableByTokenOwner();
         _;
     }
 
-    // initializer
+    modifier onlyOwnerOrTokenOwner(uint256 _tokenId) {
+        if (owner() != msg.sender && ownerOf(_tokenId) != msg.sender)
+            revert OnlyOwnerOrTokenOwner();
+        _;
+    }
 
-    function initialize(
-        address _royaltyCollector,
-        address _admin
-    ) public initializer {
-        __Ownable_init_unchained();
-        __ERC2981_init_unchained();
-        __ERC721_init_unchained("Mitchell F. Chan, Beggars Belief", "BB");
+    // constructor
 
-        _setDefaultRoyalty(_royaltyCollector, 750); // 750 (out of 10,000) = 7.5%
-
-        state.admin = _admin;
+    constructor(
+        address _royaltyCollector
+    ) ERC721("Mitchell F. Chan, Beggars Belief", "BB") {
+        _setDefaultRoyalty(_royaltyCollector, 1000); // 1,000 = 10% (out of 10,000)
     }
 
     // onlyOwner functions
 
-    function setAdmin(address _admin) external onlyOwner {
-        state.admin = _admin;
-    }
-
-    function revokeAdmin() external onlyOwnerOrAdmin {
-        state.admin = address(0);
-    }
-
     function mint(
         address _to,
         uint256 _tokenId,
-        string memory _tokenURI
+        string memory _baseURI
     ) external onlyOwner tokenDoesNotExist(_tokenId) {
         _mint(_to, _tokenId);
 
-        state.tokenURIs[_tokenId] = _tokenURI;
+        baseURIs[_tokenId] = _baseURI;
     }
 
-    // function burn(uint256 _tokenId) external onlyOwner tokenExists(_tokenId) {
-    //   _burn(_tokenId);
-    // }
+    // TODO: we don't need to include this in the final contract, but it's here for reference
+    function burn(uint256 _tokenId) external onlyOwner tokenExists(_tokenId) {
+        _burn(_tokenId);
+    }
 
-    function setTokenURI(
+    function setBaseURI(
         uint256 _tokenId,
-        string memory _tokenURI
+        string memory _baseURI
     ) external onlyOwner tokenExists(_tokenId) {
-        state.tokenURIs[_tokenId] = _tokenURI;
+        baseURIs[_tokenId] = _baseURI;
     }
 
     function setDefaultRoyalty(
@@ -161,8 +130,8 @@ contract BeggarsBeliefV1 is
     function setCollectorAcknowledgement(
         uint256 _tokenId,
         string memory _collectorAcknowledgement
-    ) external onlyTokenOwner(_tokenId) {
-        state.collectorAcknowledgement[_tokenId] = _collectorAcknowledgement;
+    ) external onlyOwnerOrTokenOwner(_tokenId) {
+        collectorAcknowledgement[_tokenId] = _collectorAcknowledgement;
 
         emit SetCollectorAcknowledgement(
             _tokenId,
@@ -174,8 +143,8 @@ contract BeggarsBeliefV1 is
     function setAdditionalInformation(
         uint256 _tokenId,
         string memory _additionalInformation
-    ) external onlyTokenOwner(_tokenId) {
-        state.additionalInformation[_tokenId] = _additionalInformation;
+    ) external onlyOwnerOrTokenOwner(_tokenId) {
+        additionalInformation[_tokenId] = _additionalInformation;
 
         emit SetAdditionalInformation(
             _tokenId,
@@ -188,35 +157,25 @@ contract BeggarsBeliefV1 is
 
     function supportsInterface(
         bytes4 interfaceId
-    )
-        public
-        view
-        virtual
-        override(ERC721Upgradeable, ERC2981Upgradeable)
-        returns (bool)
-    {
+    ) public view virtual override(ERC721, ERC2981) returns (bool) {
         return super.supportsInterface(interfaceId);
-    }
-
-    function getAdmin() public view returns (address) {
-        return state.admin;
     }
 
     function tokenURI(
         uint256 _tokenId
     ) public view override tokenExists(_tokenId) returns (string memory) {
-        return state.tokenURIs[_tokenId];
+        return baseURIs[_tokenId];
     }
 
     function getCollectorAcknowledgement(
         uint256 _tokenId
     ) public view tokenExists(_tokenId) returns (string memory) {
-        return state.collectorAcknowledgement[_tokenId];
+        return collectorAcknowledgement[_tokenId];
     }
 
     function getAdditionalInformation(
         uint256 _tokenId
     ) public view tokenExists(_tokenId) returns (string memory) {
-        return state.additionalInformation[_tokenId];
+        return additionalInformation[_tokenId];
     }
 }

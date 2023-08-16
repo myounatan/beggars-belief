@@ -38,6 +38,7 @@ const config: HardhatUserConfig = {
     mainnet: {
       chainId: 1,
       url: INFURA_MAINNET,
+      // accounts: [ `${process.env.MAINNET_DEPLOYER_PRIVATE_KEY}` ],
       accounts: {
         mnemonic: MNEMONIC,
       },
