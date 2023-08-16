@@ -51,6 +51,9 @@ contract BeggarsBeliefV2 is
         string text
     );
 
+    /// @notice Emitted when the token URI is updated.
+    event MetadataUpdate(uint256 _tokenId);
+
     // errors
 
     /// @notice Emitted when calling a function the requires the caller to be the owner or admin.
@@ -145,6 +148,8 @@ contract BeggarsBeliefV2 is
         string memory _tokenURI
     ) external onlyOwner tokenExists(_tokenId) {
         state.tokenURIs[_tokenId] = _tokenURI;
+
+        emit MetadataUpdate(_tokenId);
     }
 
     function setDefaultRoyalty(
